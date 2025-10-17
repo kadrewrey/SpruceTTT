@@ -33,6 +33,7 @@ async function seedGuestAccounts() {
                     // Insert the guest account
                     await db_1.db.insert(schema_1.users).values({
                         username: account.username,
+                        nickname: account.username, // Use username as nickname for guest accounts
                         password: hashedPassword,
                         isGuestAccount: true,
                     });

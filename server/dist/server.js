@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
 // Middleware
 app.use((0, cors_1.default)({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -50,9 +50,13 @@ app.get('/health', (req, res) => {
 // User registration
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
-        if (!username || !password) {
-            return res.status(400).json({ error: 'Username and password are required' });
+        const { username, password, nickname } = req.body;
+        if (!username || !password || !nickname) {
+            return res.status(400).json({ error: 'Username, password, and nickname are required' });
+        }
+        // Validate nickname length
+        if (nickname.length > 15) {
+            return res.status(400).json({ error: 'Nickname must be 15 characters or less' });
         }
         // Check if user already exists
         const existingUser = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.username, username));
@@ -65,14 +69,15 @@ app.post('/api/register', async (req, res) => {
         // Create user
         const newUser = {
             username,
+            nickname,
             password: hashedPassword,
         };
         const [createdUser] = await db_1.db.insert(schema_1.users).values(newUser).returning();
         // Generate JWT token
-        const token = jsonwebtoken_1.default.sign({ userId: createdUser.id, username: createdUser.username }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jsonwebtoken_1.default.sign({ userId: createdUser.id, username: createdUser.username, nickname: createdUser.nickname }, JWT_SECRET, { expiresIn: '24h' });
         res.status(201).json({
             message: 'User created successfully',
-            user: { id: createdUser.id, username: createdUser.username },
+            user: { id: createdUser.id, username: createdUser.username, nickname: createdUser.nickname },
             token,
         });
     }
@@ -99,10 +104,10 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         // Generate JWT token
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jsonwebtoken_1.default.sign({ userId: user.id, username: user.username, nickname: user.nickname }, JWT_SECRET, { expiresIn: '24h' });
         res.json({
             message: 'Login successful',
-            user: { id: user.id, username: user.username },
+            user: { id: user.id, username: user.username, nickname: user.nickname },
             token,
         });
     }

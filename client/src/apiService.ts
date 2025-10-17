@@ -4,6 +4,7 @@ const API_BASE_URL = 'http://localhost:3000/api';
 export interface User {
   id: string;
   username: string;
+  nickname: string;
 }
 
 export interface GameResult {
@@ -67,13 +68,15 @@ class ApiService {
     return response.json();
   }
 
-  async registerGuest(username: string): Promise<AuthResponse> {
+  async registerGuest(username: string, nickname?: string): Promise<AuthResponse> {
     // Generate a random password for guest users
     const guestPassword = 'guest_' + Math.random().toString(36).substring(2, 15);
+    // If no nickname provided, use username as nickname for guest users
+    const guestNickname = nickname || username;
     
     const response = await this.request<AuthResponse>('/register', {
       method: 'POST',
-      body: JSON.stringify({ username, password: guestPassword }),
+      body: JSON.stringify({ username, password: guestPassword, nickname: guestNickname }),
     });
 
     this.token = response.token;
@@ -81,10 +84,10 @@ class ApiService {
     return response;
   }
 
-  async register(username: string, password: string): Promise<AuthResponse> {
+  async register(username: string, password: string, nickname: string): Promise<AuthResponse> {
     const response = await this.request<AuthResponse>('/register', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, nickname }),
     });
 
     this.token = response.token;
@@ -156,7 +159,7 @@ class ApiService {
     try {
       // Decode JWT payload (basic decode, not verification)
       const payload = JSON.parse(atob(this.token.split('.')[1]));
-      return { id: payload.userId, username: payload.username };
+      return { id: payload.userId, username: payload.username, nickname: payload.nickname };
     } catch {
       return null;
     }

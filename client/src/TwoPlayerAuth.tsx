@@ -24,8 +24,8 @@ const generateGuestName = (): string => {
 export const TwoPlayerAuth: React.FC<TwoPlayerAuthProps> = ({ onPlayersReady }) => {
   const [step, setStep] = useState<'player1' | 'player2'>('player1');
   const [player1, setPlayer1] = useState<Player | null>(null);
-  const [player1Auth, setPlayer1Auth] = useState({ username: '', password: '', isLogin: true });
-  const [player2Auth, setPlayer2Auth] = useState({ username: '', password: '', isLogin: true });
+  const [player1Auth, setPlayer1Auth] = useState({ username: '', password: '', nickname: '', isLogin: true });
+  const [player2Auth, setPlayer2Auth] = useState({ username: '', password: '', nickname: '', isLogin: true });
   const [showPlayer1Password, setShowPlayer1Password] = useState(false);
   const [showPlayer2Password, setShowPlayer2Password] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -125,13 +125,13 @@ export const TwoPlayerAuth: React.FC<TwoPlayerAuthProps> = ({ onPlayersReady }) 
     if (isLogin) {
       return await apiService.login(playerData.username, playerData.password);
     } else {
-      return await apiService.register(playerData.username, playerData.password);
+      return await apiService.register(playerData.username, playerData.password, playerData.nickname);
     }
   };
 
   const handlePlayer1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!player1Auth.username.trim() || !player1Auth.password.trim()) {
+    if (!player1Auth.username.trim() || !player1Auth.password.trim() || (!player1Auth.isLogin && !player1Auth.nickname.trim())) {
       setError('Please fill in all fields');
       return;
     }
@@ -157,7 +157,7 @@ export const TwoPlayerAuth: React.FC<TwoPlayerAuthProps> = ({ onPlayersReady }) 
 
   const handlePlayer2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!player2Auth.username.trim() || !player2Auth.password.trim()) {
+    if (!player2Auth.username.trim() || !player2Auth.password.trim() || (!player2Auth.isLogin && !player2Auth.nickname.trim())) {
       setError('Please fill in all fields');
       return;
     }
@@ -261,6 +261,19 @@ export const TwoPlayerAuth: React.FC<TwoPlayerAuthProps> = ({ onPlayersReady }) 
             style={inputStyle}
             disabled={loading}
           />
+
+          {!player1Auth.isLogin && (
+            <input
+              type="text"
+              placeholder="Nickname (required, max 15 chars)"
+              value={player1Auth.nickname}
+              onChange={(e) => setPlayer1Auth({...player1Auth, nickname: e.target.value.slice(0, 15)})}
+              style={inputStyle}
+              disabled={loading}
+              maxLength={15}
+              required
+            />
+          )}
 
           <div style={passwordContainerStyle}>
             <input
@@ -376,6 +389,19 @@ export const TwoPlayerAuth: React.FC<TwoPlayerAuthProps> = ({ onPlayersReady }) 
             style={inputStyle}
             disabled={loading}
           />
+
+          {!player2Auth.isLogin && (
+            <input
+              type="text"
+              placeholder="Player 2 Nickname (required, max 15 chars)"
+              value={player2Auth.nickname}
+              onChange={(e) => setPlayer2Auth({...player2Auth, nickname: e.target.value.slice(0, 15)})}
+              style={inputStyle}
+              disabled={loading}
+              maxLength={15}
+              required
+            />
+          )}
 
           <div style={passwordContainerStyle}>
             <input

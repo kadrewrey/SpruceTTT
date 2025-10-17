@@ -17,7 +17,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-producti
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -54,10 +54,15 @@ app.get('/health', (req, res) => {
 // User registration
 app.post('/api/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, nickname } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
+    if (!username || !password || !nickname) {
+      return res.status(400).json({ error: 'Username, password, and nickname are required' });
+    }
+
+    // Validate nickname length
+    if (nickname.length > 15) {
+      return res.status(400).json({ error: 'Nickname must be 15 characters or less' });
     }
 
     // Check if user already exists
@@ -73,6 +78,7 @@ app.post('/api/register', async (req, res) => {
     // Create user
     const newUser: NewUser = {
       username,
+      nickname,
       password: hashedPassword,
     };
 
@@ -80,14 +86,14 @@ app.post('/api/register', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: createdUser.id, username: createdUser.username },
+      { userId: createdUser.id, username: createdUser.username, nickname: createdUser.nickname },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     res.status(201).json({
       message: 'User created successfully',
-      user: { id: createdUser.id, username: createdUser.username },
+      user: { id: createdUser.id, username: createdUser.username, nickname: createdUser.nickname },
       token,
     });
   } catch (error) {
@@ -119,14 +125,14 @@ app.post('/api/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, username: user.username },
+      { userId: user.id, username: user.username, nickname: user.nickname },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     res.json({
       message: 'Login successful',
-      user: { id: user.id, username: user.username },
+      user: { id: user.id, username: user.username, nickname: user.nickname },
       token,
     });
   } catch (error) {

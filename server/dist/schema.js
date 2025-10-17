@@ -5,6 +5,7 @@ const pg_core_1 = require("drizzle-orm/pg-core");
 exports.users = (0, pg_core_1.pgTable)('users', {
     id: (0, pg_core_1.uuid)('id').primaryKey().defaultRandom(),
     username: (0, pg_core_1.text)('username').notNull().unique(),
+    nickname: (0, pg_core_1.text)('nickname').notNull(),
     password: (0, pg_core_1.text)('password').notNull(),
     isGuestAccount: (0, pg_core_1.boolean)('is_guest_account').default(false).notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),

@@ -10,12 +10,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
+    if (!username.trim() || !password.trim() || (!isLogin && !nickname.trim())) {
       setError('Please fill in all fields');
       return;
     }
@@ -27,7 +29,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       if (isLogin) {
         await apiService.login(username, password);
       } else {
-        await apiService.register(username, password);
+        await apiService.register(username, password, nickname);
       }
       onLogin(username);
     } catch (err) {
@@ -138,14 +140,50 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           disabled={loading}
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-          disabled={loading}
-        />
+        {!isLogin && (
+          <input
+            type="text"
+            placeholder="Nickname (required, max 15 chars)"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value.slice(0, 15))}
+            style={inputStyle}
+            disabled={loading}
+            maxLength={15}
+            required
+          />
+        )}
+
+        <div style={{ position: 'relative' }}>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{
+              ...inputStyle,
+              paddingRight: '40px'
+            }}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              padding: '4px'
+            }}
+          >
+            {showPassword ? '👁️' : '👁️‍🗨️'}
+          </button>
+        </div>
 
         <button type="submit" style={buttonStyle} disabled={loading}>
           {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
