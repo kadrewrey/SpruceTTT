@@ -5,6 +5,7 @@ import { styles, getCellStyle, getGridStyle } from './styles';
 import { apiService, GameStats } from './apiService';
 
 interface GamePlayer {
+  id: string;
   name: string;
   isAuthenticated: boolean;
   isGuest: boolean;
@@ -20,6 +21,97 @@ interface PlayerAuthState {
   isLoading: boolean;
   error: string;
 }
+
+interface PlayerStatsCardProps {
+  player: GamePlayer | null;
+  stats: GameStats | null;
+  isCurrentPlayer: boolean;
+  playerSymbol: 'X' | 'O';
+  onLogout: () => void;
+  children?: React.ReactNode; // For auth components when not logged in
+}
+
+const PlayerStatsCard: React.FC<PlayerStatsCardProps> = ({
+  player,
+  stats,
+  isCurrentPlayer,
+  playerSymbol,
+  onLogout,
+  children
+}) => {
+  return (
+    <div style={{
+      background: 'rgba(255, 255, 255, 0.1)',
+      backdropFilter: 'blur(20px)',
+      border: isCurrentPlayer ? '3px solid rgba(255, 255, 255, 0.8)' : '3px solid transparent',
+      borderRadius: '20px',
+      padding: '1.5rem 1rem',
+      textAlign: 'center',
+      width: '180px',
+      transition: 'all 0.3s ease',
+      boxShadow: isCurrentPlayer ? '0 0 20px rgba(255, 255, 255, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)',
+      margin: '10px',
+      marginTop: '0',
+    }}>
+      {player ? (
+        <>
+          <div style={{ 
+            fontSize: '20px', 
+            fontWeight: 'bold', 
+            color: 'white',
+            marginBottom: '8px'
+          }}>
+            Player {playerSymbol}
+          </div>
+          <div style={{ fontSize: '16px', color: 'white', marginBottom: '12px' }}>
+            {player.name}
+            {player.isGuest && <div style={{ fontSize: '12px', opacity: 0.7 }}>(Guest)</div>}
+          </div>
+          {stats && (
+            <div style={{ 
+              fontSize: '12px', 
+              color: 'rgba(255, 255, 255, 0.8)', 
+              marginBottom: '12px',
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              gap: '2px 8px',
+              textAlign: 'left',
+              fontFamily: 'monospace'
+            }}>
+              <span>Won:</span>
+              <span style={{ textAlign: 'right' }}>{stats.wins}</span>
+              <span>Drawn:</span>
+              <span style={{ textAlign: 'right' }}>{stats.draws}</span>
+              <span>Lost:</span>
+              <span style={{ textAlign: 'right' }}>{stats.losses}</span>
+              <span>Win Ratio:</span>
+              <span style={{ textAlign: 'right' }}>{stats.winRate.toFixed(0)}%</span>
+            </div>
+          )}
+          <button
+            onClick={onLogout}
+            style={{
+              background: 'rgba(220, 53, 69, 0.8)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => (e.target as HTMLButtonElement).style.background = 'rgba(220, 53, 69, 1)'}
+            onMouseLeave={(e) => (e.target as HTMLButtonElement).style.background = 'rgba(220, 53, 69, 0.8)'}
+          >
+            {player.isGuest ? 'Change Guest' : 'Logout'}
+          </button>
+        </>
+      ) : (
+        children
+      )}
+    </div>
+  );
+};
 
 export const Main = () => {
   const [playerX, setPlayerX] = useState<GamePlayer | null>(null);
@@ -70,6 +162,26 @@ export const Main = () => {
     setGameSaved(false);
   };
 
+  const refreshPlayerStats = async () => {
+    if (!playerX || !playerO) return;
+
+    // Refresh Player X stats using unified approach
+    try {
+      const statsResponse = await apiService.getUserStats(playerX.id);
+      setPlayerXStats(statsResponse.stats);
+    } catch (error) {
+      console.error('Error refreshing Player X stats:', error);
+    }
+
+    // Refresh Player O stats using unified approach
+    try {
+      const statsResponse = await apiService.getUserStats(playerO.id);
+      setPlayerOStats(statsResponse.stats);
+    } catch (error) {
+      console.error('Error refreshing Player O stats:', error);
+    }
+  };
+
   const saveGameResult = async (gameResult: Result, moves: number, duration: number) => {
     if (gameSaved || !playerX || !playerO) return;
 
@@ -77,16 +189,27 @@ export const Main = () => {
       const winner = gameResult === 'Draw' ? null : gameResult;
       const winnerName = winner === 'X' ? playerX.name : winner === 'O' ? playerO.name : null;
       
+      console.log('Saving game result:', {
+        gameResult,
+        winner,
+        winnerName,
+        playerXName: playerX.name,
+        playerOName: playerO.name
+      });
+      
       await apiService.saveGame({
         boardSize: size,
         isWin: gameResult !== 'Draw' && gameResult !== null,
         moves,
         duration: Math.floor(duration / 1000),
-        winner: winnerName || undefined,
-        playerX: playerX.name,
-        playerO: playerO.name,
+        winnerId: winner === 'X' ? playerX.id : winner === 'O' ? playerO.id : undefined,
+        playerXId: playerX.id,
+        playerOId: playerO.id,
       });
       setGameSaved(true);
+      
+      // Refresh stats after successful game save
+      await refreshPlayerStats();
     } catch (error) {
       console.error('Failed to save game:', error);
     }
@@ -135,6 +258,7 @@ export const Main = () => {
         : await apiService.register(authData.username, authData.password);
 
       const player: GamePlayer = {
+        id: response.user.id,
         name: response.user.username,
         isAuthenticated: true,
         isGuest: false,
@@ -165,21 +289,16 @@ export const Main = () => {
       const guestName = generateGuestName();
       const guestResponse = await apiService.guestLogin(guestName);
       const player: GamePlayer = {
+        id: guestResponse.user.id,
         name: guestResponse.user.username,
         isAuthenticated: true,
         isGuest: true,
       };
 
-      // Fetch stats for the guest player
+      // Fetch stats for the guest player using unified approach
       try {
-        const statsResponse = await apiService.getGuestStats(guestName);
-        const stats = {
-          totalGames: statsResponse.stats.totalGames,
-          wins: statsResponse.stats.wins,
-          losses: statsResponse.stats.losses,
-          draws: statsResponse.stats.draws,
-          winRate: statsResponse.stats.winRate
-        };
+        const statsResponse = await apiService.getUserStats(player.id);
+        const stats = statsResponse.stats;
 
         if (isPlayerX) {
           setPlayerX(player);
@@ -229,36 +348,21 @@ export const Main = () => {
 
   const fetchPlayerStats = async (playerXData: GamePlayer, playerOData: GamePlayer) => {
     try {
-      // Fetch stats for Player X
-      if (playerXData.isGuest) {
-        try {
-          const statsResponse = await apiService.getGuestStats(playerXData.name);
-          setPlayerXStats(statsResponse.stats);
-        } catch (error) {
-          console.error('Error fetching Player X guest stats:', error);
-          setPlayerXStats({ totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 });
-        }
-      } else {
-        try {
-          const profileX = await apiService.getProfile();
-          setPlayerXStats(profileX.stats);
-        } catch (error) {
-          console.error('Error fetching Player X stats:', error);
-          setPlayerXStats({ totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 });
-        }
+      // Fetch stats for Player X using unified approach
+      try {
+        const statsResponse = await apiService.getUserStats(playerXData.id);
+        setPlayerXStats(statsResponse.stats);
+      } catch (error) {
+        console.error('Error fetching Player X stats:', error);
+        setPlayerXStats({ totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 });
       }
       
-      // Fetch stats for Player O
-      if (playerOData.isGuest) {
-        try {
-          const statsResponse = await apiService.getGuestStats(playerOData.name);
-          setPlayerOStats(statsResponse.stats);
-        } catch (error) {
-          console.error('Error fetching Player O guest stats:', error);
-          setPlayerOStats({ totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 });
-        }
-      } else {
-        // For non-guest Player O, we can't fetch their individual stats with current auth system
+      // Fetch stats for Player O using unified approach
+      try {
+        const statsResponse = await apiService.getUserStats(playerOData.id);
+        setPlayerOStats(statsResponse.stats);
+      } catch (error) {
+        console.error('Error fetching Player O stats:', error);
         setPlayerOStats({ totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 });
       }
       
@@ -269,48 +373,7 @@ export const Main = () => {
     }
   };
 
-  // Update stats after game ends
-  const updateStatsAfterGame = async () => {
-    if (!result) return;
-    
-    // Refresh Player X stats
-    if (playerX) {
-      try {
-        if (playerX.isGuest) {
-          const statsResponse = await apiService.getGuestStats(playerX.name);
-          setPlayerXStats(statsResponse.stats);
-        } else {
-          const profileX = await apiService.getProfile();
-          setPlayerXStats(profileX.stats);
-        }
-      } catch (error) {
-        console.error('Error updating Player X stats:', error);
-      }
-    }
 
-    // Refresh Player O stats
-    if (playerO) {
-      try {
-        if (playerO.isGuest) {
-          const statsResponse = await apiService.getGuestStats(playerO.name);
-          setPlayerOStats(statsResponse.stats);
-        } else {
-          // For non-guest Player O, we can't fetch their stats since they have a different auth token
-          // This would require a different approach in a real app
-          console.log('Cannot fetch stats for authenticated Player O with current auth system');
-        }
-      } catch (error) {
-        console.error('Error updating Player O stats:', error);
-      }
-    }
-  };
-
-  // Call updateStatsAfterGame when result changes
-  useEffect(() => {
-    if (result && gameSaved) {
-      updateStatsAfterGame();
-    }
-  }, [result, gameSaved]);
 
   const handleLogout = (isPlayerX: boolean) => {
     if (isPlayerX) {
@@ -587,79 +650,16 @@ export const Main = () => {
         justifyContent: 'center'
       }}>
         
-        {/* Player X Lozenge */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(20px)',
-          border: player === 'X' ? '3px solid rgba(255, 255, 255, 0.8)' : '3px solid transparent',
-          borderRadius: '20px',
-          padding: '1.5rem 1rem',
-          textAlign: 'center',
-          width: '180px', // Fixed width for balance
-          transition: 'all 0.3s ease',
-          boxShadow: player === 'X' ? '0 0 20px rgba(255, 255, 255, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)',
-          margin: '10px', // Add consistent margin to accommodate glow
-          marginTop: '60px', // Align with game board (after control panel)
-        }}>
-          {playerX ? (
-            <>
-              <div style={{ 
-                fontSize: '20px', 
-                fontWeight: 'bold', 
-                color: 'white',
-                marginBottom: '8px'
-              }}>
-                Player X
-              </div>
-              <div style={{ fontSize: '16px', color: 'white', marginBottom: '12px' }}>
-                {playerX.name}
-                {playerX.isGuest && <div style={{ fontSize: '12px', opacity: 0.7 }}>(Guest)</div>}
-              </div>
-              {playerXStats && (
-                <div style={{ 
-                  fontSize: '12px', 
-                  color: 'rgba(255, 255, 255, 0.8)', 
-                  marginBottom: '12px',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: '2px 8px',
-                  textAlign: 'left',
-                  fontFamily: 'monospace'
-                }}>
-                  <span>Won:</span>
-                  <span style={{ textAlign: 'right' }}>{playerXStats.wins}</span>
-                  <span>Drawn:</span>
-                  <span style={{ textAlign: 'right' }}>{playerXStats.draws}</span>
-                  <span>Lost:</span>
-                  <span style={{ textAlign: 'right' }}>{playerXStats.losses}</span>
-                  <span>Win Ratio:</span>
-                  <span style={{ textAlign: 'right' }}>{playerXStats.winRate.toFixed(0)}%</span>
-                </div>
-              )}
-              {!playerX.isGuest && (
-                <button
-                  onClick={() => handleLogout(true)}
-                  style={{
-                    background: 'rgba(220, 53, 69, 0.8)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => (e.target as HTMLButtonElement).style.background = 'rgba(220, 53, 69, 1)'}
-                  onMouseLeave={(e) => (e.target as HTMLButtonElement).style.background = 'rgba(220, 53, 69, 0.8)'}
-                >
-                  Logout
-                </button>
-              )}
-            </>
-          ) : (
-            renderPlayerAuth(true)
-          )}
-        </div>
+        {/* Player X Stats */}
+        <PlayerStatsCard
+          player={playerX}
+          stats={playerXStats}
+          isCurrentPlayer={player === 'X'}
+          playerSymbol="X"
+          onLogout={() => handleLogout(true)}
+        >
+          {renderPlayerAuth(true)}
+        </PlayerStatsCard>
 
         {/* Main Game Area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -745,79 +745,16 @@ export const Main = () => {
           </button>
         </div>
 
-        {/* Player O Lozenge */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(20px)',
-          border: player === 'O' ? '3px solid rgba(255, 255, 255, 0.8)' : '3px solid transparent',
-          borderRadius: '20px',
-          padding: '1.5rem 1rem',
-          textAlign: 'center',
-          width: '180px', // Fixed width for balance
-          transition: 'all 0.3s ease',
-          boxShadow: player === 'O' ? '0 0 20px rgba(255, 255, 255, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)',
-          margin: '10px', // Add consistent margin to accommodate glow
-          marginTop: '60px', // Align with game board (after control panel)
-        }}>
-          {playerO ? (
-            <>
-              <div style={{ 
-                fontSize: '20px', 
-                fontWeight: 'bold', 
-                color: 'white',
-                marginBottom: '8px'
-              }}>
-                Player O
-              </div>
-              <div style={{ fontSize: '16px', color: 'white', marginBottom: '12px' }}>
-                {playerO.name}
-                {playerO.isGuest && <div style={{ fontSize: '12px', opacity: 0.7 }}>(Guest)</div>}
-              </div>
-              {playerOStats && (
-                <div style={{ 
-                  fontSize: '12px', 
-                  color: 'rgba(255, 255, 255, 0.8)', 
-                  marginBottom: '12px',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: '2px 8px',
-                  textAlign: 'left',
-                  fontFamily: 'monospace'
-                }}>
-                  <span>Won:</span>
-                  <span style={{ textAlign: 'right' }}>{playerOStats.wins}</span>
-                  <span>Drawn:</span>
-                  <span style={{ textAlign: 'right' }}>{playerOStats.draws}</span>
-                  <span>Lost:</span>
-                  <span style={{ textAlign: 'right' }}>{playerOStats.losses}</span>
-                  <span>Win Ratio:</span>
-                  <span style={{ textAlign: 'right' }}>{playerOStats.winRate.toFixed(0)}%</span>
-                </div>
-              )}
-              {!playerO.isGuest && (
-                <button
-                  onClick={() => handleLogout(false)}
-                  style={{
-                    background: 'rgba(220, 53, 69, 0.8)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => (e.target as HTMLButtonElement).style.background = 'rgba(220, 53, 69, 1)'}
-                  onMouseLeave={(e) => (e.target as HTMLButtonElement).style.background = 'rgba(220, 53, 69, 0.8)'}
-                >
-                  Logout
-                </button>
-              )}
-            </>
-          ) : (
-            renderPlayerAuth(false)
-          )}
-        </div>
+        {/* Player O Stats */}
+        <PlayerStatsCard
+          player={playerO}
+          stats={playerOStats}
+          isCurrentPlayer={player === 'O'}
+          playerSymbol="O"
+          onLogout={() => handleLogout(false)}
+        >
+          {renderPlayerAuth(false)}
+        </PlayerStatsCard>
       </div>
     </div>
   );

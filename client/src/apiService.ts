@@ -11,9 +11,9 @@ export interface GameResult {
   isWin: boolean;
   moves: number;
   duration?: number;
-  winner?: string; // Add winner information
-  playerX?: string; // Player X name
-  playerO?: string; // Player O name
+  winnerId?: string; // UUID of the winner
+  playerXId: string; // Player X UUID
+  playerOId: string; // Player O UUID
 }
 
 export interface AuthResponse {
@@ -120,6 +120,10 @@ class ApiService {
 
   async getGuestStats(playerName: string): Promise<{ stats: GameStats }> {
     return this.request<{ stats: GameStats }>(`/guest-stats/${encodeURIComponent(playerName)}`);
+  }
+
+  async getUserStats(userId: string): Promise<{ stats: GameStats }> {
+    return this.request<{ stats: GameStats }>(`/users/${userId}/stats`);
   }
 
   async getGuestAccounts(): Promise<{ guestAccounts: string[] }> {

@@ -114,7 +114,7 @@ app.post('/api/login', async (req, res) => {
 // Save game result
 app.post('/api/games', async (req, res) => {
     try {
-        const { boardSize, isWin, moves, duration, winner, playerX, playerO } = req.body;
+        const { boardSize, isWin, moves, duration, winnerId, playerXId, playerOId } = req.body;
         // Check if request has authentication token
         const authHeader = req.headers['authorization'];
         const token = authHeader && authHeader.split(' ')[1];
@@ -139,9 +139,9 @@ app.post('/api/games', async (req, res) => {
             isWin,
             moves,
             duration: duration || null,
-            winner: winner || null,
-            playerX: playerX || null,
-            playerO: playerO || null,
+            winnerId: winnerId || null,
+            playerXId: playerXId,
+            playerOId: playerOId,
         };
         const [createdGame] = await db_1.db.insert(schema_1.games).values(newGame).returning();
         res.status(201).json({
@@ -184,7 +184,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         // Calculate draws: games where there's no winner and isWin is false
         const draws = userGames.filter((game) => !game.winner && !game.isWin).length;
         const losses = totalGames - wins - draws;
-        const winRate = totalGames > 0 ? wins / totalGames : 0;
+        const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
         res.json({
             user: { id: user.id, username: user.username, createdAt: user.createdAt },
             stats: {
@@ -246,9 +246,20 @@ app.get('/api/guest-stats/:playerName', async (req, res) => {
     try {
         const { playerName } = req.params;
         // Get all games where this guest player participated
+        // First find the user by username to get their UUID
+        const [user] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.username, playerName));
+        if (!user) {
+            return res.json({
+                totalGames: 0,
+                wins: 0,
+                losses: 0,
+                draws: 0,
+                winRatio: 0
+            });
+        }
         const playerGames = await db_1.db.select().from(schema_1.games).where(
-        // Get games where playerX or playerO matches the guest player name
-        (0, drizzle_orm_1.sql) `${schema_1.games.playerX} = ${playerName} OR ${schema_1.games.playerO} = ${playerName}`);
+        // Get games where playerXId or playerOId matches the user's UUID
+        (0, drizzle_orm_1.sql) `${schema_1.games.playerXId} = ${user.id} OR ${schema_1.games.playerOId} = ${user.id}`);
         const totalGames = playerGames.length;
         if (totalGames === 0) {
             return res.json({
@@ -267,7 +278,7 @@ app.get('/api/guest-stats/:playerName', async (req, res) => {
         const draws = playerGames.filter((game) => game.winner === null).length;
         // Losses are total games minus wins and draws
         const losses = totalGames - wins - draws;
-        const winRate = totalGames > 0 ? wins / totalGames : 0;
+        const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
         res.json({
             stats: {
                 totalGames,
@@ -280,6 +291,65 @@ app.get('/api/guest-stats/:playerName', async (req, res) => {
     }
     catch (error) {
         console.error('Get guest stats error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+// Get user stats by user ID (unified endpoint for both regular and guest users)
+app.get('/api/users/:userId/stats', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        // Get the user to verify they exist and get their username
+        const user = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, userId));
+        if (user.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const username = user[0].username;
+        // Get all games where this user participated (by UUID)
+        const userGames = await db_1.db.select().from(schema_1.games).where((0, drizzle_orm_1.sql) `${schema_1.games.playerXId} = ${userId} OR ${schema_1.games.playerOId} = ${userId}`);
+        const totalGames = userGames.length;
+        if (totalGames === 0) {
+            return res.json({
+                stats: {
+                    totalGames: 0,
+                    wins: 0,
+                    losses: 0,
+                    draws: 0,
+                    winRate: 0,
+                },
+            });
+        }
+        // Calculate wins: games where the user is the winner
+        const wins = userGames.filter((game) => game.winnerId === userId).length;
+        // Calculate draws: games where there's no winner and isWin is false
+        const draws = userGames.filter((game) => !game.winner && !game.isWin).length;
+        // Losses are total games minus wins and draws
+        const losses = totalGames - wins - draws;
+        // Debug logging
+        console.log(`Stats for user ${username} (${userId}):`, {
+            totalGames,
+            wins,
+            draws,
+            losses,
+            userGames: userGames.map((g) => ({
+                winnerId: g.winnerId,
+                playerXId: g.playerXId,
+                playerOId: g.playerOId,
+                isWin: g.isWin
+            }))
+        });
+        const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
+        res.json({
+            stats: {
+                totalGames,
+                wins,
+                losses,
+                draws,
+                winRate: Math.round(winRate * 100) / 100,
+            },
+        });
+    }
+    catch (error) {
+        console.error('Get user stats error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

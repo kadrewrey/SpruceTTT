@@ -15,9 +15,9 @@ export const games = pgTable('games', {
   isWin: boolean('is_win').notNull(),
   moves: integer('moves').notNull(),
   duration: integer('duration'), // in seconds
-  winner: text('winner'), // name of the winner
-  playerX: text('player_x'), // Player X name
-  playerO: text('player_o'), // Player O name
+  winnerId: uuid('winner_id').references(() => users.id), // UUID of the winner
+  playerXId: uuid('player_x_id').references(() => users.id).notNull(), // Player X UUID
+  playerOId: uuid('player_o_id').references(() => users.id).notNull(), // Player O UUID
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

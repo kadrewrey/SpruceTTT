@@ -16,8 +16,8 @@ exports.games = (0, pg_core_1.pgTable)('games', {
     isWin: (0, pg_core_1.boolean)('is_win').notNull(),
     moves: (0, pg_core_1.integer)('moves').notNull(),
     duration: (0, pg_core_1.integer)('duration'), // in seconds
-    winner: (0, pg_core_1.text)('winner'), // name of the winner
-    playerX: (0, pg_core_1.text)('player_x'), // Player X name
-    playerO: (0, pg_core_1.text)('player_o'), // Player O name
+    winnerId: (0, pg_core_1.uuid)('winner_id').references(() => exports.users.id), // UUID of the winner
+    playerXId: (0, pg_core_1.uuid)('player_x_id').references(() => exports.users.id).notNull(), // Player X UUID
+    playerOId: (0, pg_core_1.uuid)('player_o_id').references(() => exports.users.id).notNull(), // Player O UUID
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 });
