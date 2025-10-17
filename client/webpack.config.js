@@ -1,12 +1,14 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const tailwindcss = require('tailwindcss')
 const webpack = require('webpack')
+const path = require('path')
 
 module.exports = (env) => ({
   mode: 'development',
-  entry: './src/index.tsx',
+  entry: './client/src/index.tsx',
   devtool: 'source-map',
   output: {
+    path: path.resolve(__dirname, 'dist'),
     publicPath: '/',
     filename: '[name].[contenthash].js'
   },
@@ -14,7 +16,10 @@ module.exports = (env) => ({
     rules: [
       {
         test: /\.tsx?$/,
-        loader: 'ts-loader'
+        loader: 'ts-loader',
+        options: {
+          configFile: path.resolve(__dirname, 'tsconfig.json')
+        }
       },
       {
         test: /\.(webp|jpe?g|svg|png)$/i,
@@ -43,12 +48,12 @@ module.exports = (env) => ({
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: './src/index.html'
+      template: './client/src/index.html'
     }),
     new webpack.DefinePlugin({ 'process.env': JSON.stringify(process.env) })
   ],
   devServer: {
     historyApiFallback: true,
-    port: 3001
+    port: 3000
   }
 })

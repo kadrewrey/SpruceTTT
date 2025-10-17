@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>Spruce Tic-Tac-Toe API Test</h1>
+    
+    <div>
+        <h2>Test Registration</h2>
+        <button onclick="testRegistration()">Test Register User</button>
+        <div id="registerResult"></div>
+    </div>
+    
+    <div>
+        <h2>Test Login</h2>
+        <button onclick="testLogin()">Test Login User</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div>
+        <h2>Test Save Game</h2>
+        <button onclick="testSaveGame()">Test Save Game</button>
+        <div id="saveGameResult"></div>
+    </div>
+
+    <script>
+        let authToken = null;
+
+        async function testRegistration() {
+            try {
+                const response = await fetch('http://localhost:3001/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser_' + Date.now(),
+                        password: 'testpass123'
+                    })
+                });
+                
+                const data = await response.json();
+                authToken = data.token;
+                document.getElementById('registerResult').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('registerResult').innerHTML = 
+                    '<div style="color: red;">Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function testLogin() {
+            try {
+                const response = await fetch('http://localhost:3001/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'testuser',
+                        password: 'testpass123'
+                    })
+                });
+                
+                const data = await response.json();
+                authToken = data.token;
+                document.getElementById('loginResult').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = 
+                    '<div style="color: red;">Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function testSaveGame() {
+            if (!authToken) {
+                document.getElementById('saveGameResult').innerHTML = 
+                    '<div style="color: red;">Please register or login first</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3001/api/games', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({
+                        boardSize: 3,
+                        isWin: true,
+                        moves: 5,
+                        duration: 45
+                    })
+                });
+                
+                const data = await response.json();
+                document.getElementById('saveGameResult').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('saveGameResult').innerHTML = 
+                    '<div style="color: red;">Error: ' + error.message + '</div>';
+            }
+        }
+    </script>
+</body>
+</html>
