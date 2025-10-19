@@ -7,6 +7,7 @@ The database is also available to view using the connection string in the .env f
 
 ## Quickstart
 - ** There's no need to switch to client directory ** 
+- In the terminal run
 - `npm i`
 - `npm start`
 

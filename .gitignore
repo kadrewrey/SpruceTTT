@@ -5,3 +5,7 @@ client/dist/
 server/dist/
 *.log
 .DS_Store
+.idea/
+
+# Sentry Config File
+.env.sentry-build-plugin
