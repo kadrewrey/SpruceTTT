@@ -13,3 +13,15 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Literata', serif;
 }
+
+/* Game board cell hover effects */
+.cell-hoverable:hover {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+  transform: scale(1.05) !important;
+}
+
+/* New game button hover effect */
+.new-game-button:hover {
+  transform: translateY(-2px) !important;
+  background-color: rgba(255, 255, 255, 0.7) !important;
+}

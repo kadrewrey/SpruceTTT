@@ -11,8 +11,6 @@
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "webpack serve --config client/webpack.config.js",
     "dev:server": "set PORT=3001 && nodemon --watch server/src --exec ts-node server/src/server.ts",
-    "seed:guests": "ts-node server/src/seedGuests.ts",
-    "migrate": "ts-node server/src/migrate.ts",
     "db:push": "drizzle-kit push:pg --config=server/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=server/drizzle.config.ts",
     "db:generate": "drizzle-kit generate:pg --config=server/drizzle.config.ts",
