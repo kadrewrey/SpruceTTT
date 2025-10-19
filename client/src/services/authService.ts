@@ -7,97 +7,117 @@ export interface AuthServiceCallbacks {
   reset: () => void;
 }
 
+type PlayerType = 'X' | 'O';
+type AuthType = 'login' | 'register' | 'guest';
+
+const DEFAULT_STATS = { totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 };
+
 export const authService = {
-  async handlePlayerAuth(
-    isPlayerX: boolean, 
-    authData: PlayerAuthState, 
-    callbacks: AuthServiceCallbacks
-  ) {
-    const playerType = isPlayerX ? 'X' : 'O';
+  // Helper: Create player object from API response
+  _createPlayer(user: any, isGuest: boolean): GamePlayer {
+    return {
+      id: user.id,
+      name: user.username,
+      nickname: user.nickname || user.username,
+      isAuthenticated: true,
+      isGuest,
+    };
+  },
+
+  // Helper: Fetch player stats with fallback
+  async _fetchPlayerStats(playerId: string, isPlayerX: boolean) {
+    try {
+      const response = isPlayerX 
+        ? await apiService.getProfile()
+        : await apiService.getUserStats(playerId);
+      return response.stats;
+    } catch {
+      return DEFAULT_STATS;
+    }
+  },
+
+  // Helper: Handle guest authentication
+  async _authenticateGuest() {
+    const { guestAccounts } = await apiService.getGuestAccounts();
     
+    if (!guestAccounts?.length) {
+      throw new Error('No guest accounts available');
+    }
+    
+    const randomGuestName = guestAccounts[Math.floor(Math.random() * guestAccounts.length)];
+    return apiService.guestLogin(randomGuestName);
+  },
+
+  // Helper: Handle regular authentication
+  async _authenticateUser(authType: 'login' | 'register', authData: PlayerAuthState) {
+    const { username, password, nickname } = authData;
+    
+    return authType === 'login'
+      ? apiService.login(username, password)
+      : apiService.register(username, password, nickname);
+  },
+
+  // Main authentication method
+  async authenticate(
+    playerType: PlayerType,
+    authType: AuthType,
+    callbacks: AuthServiceCallbacks,
+    authData?: PlayerAuthState
+  ) {
     callbacks.updatePlayerAuth(playerType, { isLoading: true, error: '' });
 
     try {
-      const response = authData.isLoginMode 
-        ? await apiService.login(authData.username, authData.password)
-        : await apiService.register(authData.username, authData.password, authData.nickname);
+      // Authenticate based on type
+      let response;
+      let isGuest: boolean;
 
-      const player: GamePlayer = {
-        id: response.user.id,
-        name: response.user.username,
-        nickname: response.user.nickname,
-        isAuthenticated: true,
-        isGuest: false,
-      };
-
-      if (isPlayerX) {
-        callbacks.updatePlayer('X', { player });
-        const profileX = await apiService.getProfile();
-        callbacks.updatePlayer('X', { stats: profileX.stats });
-        callbacks.updatePlayerAuth('X', { isLoggedIn: true, isLoading: false, showLogin: false });
+      if (authType === 'guest') {
+        response = await this._authenticateGuest();
+        isGuest = true;
       } else {
-        callbacks.updatePlayer('O', { player });
-        // For Player O, we'll fetch their guest stats if they're a guest, otherwise default stats
-        callbacks.updatePlayer('O', { stats: { totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 } });
-        callbacks.updatePlayerAuth('O', { isLoggedIn: true, isLoading: false, showLogin: false });
+        if (!authData) throw new Error('Auth data required for login/register');
+        response = await this._authenticateUser(authType, authData);
+        isGuest = false;
       }
+
+      // Create player and fetch stats
+      const player = this._createPlayer(response.user, isGuest);
+      const stats = await this._fetchPlayerStats(player.id, playerType === 'X');
+
+      // Update state
+      callbacks.updatePlayer(playerType, { player, stats });
+      callbacks.updatePlayerAuth(playerType, {
+        isLoggedIn: true,
+        isLoading: false,
+        ...(authType !== 'guest' && { showLogin: false })
+      });
+
     } catch (error) {
+      const errorMessage = authType === 'guest' 
+        ? 'Failed to login as guest'
+        : (error instanceof Error ? error.message : 'Authentication failed');
+        
       callbacks.updatePlayerAuth(playerType, { 
         isLoading: false, 
-        error: error instanceof Error ? error.message : 'An error occurred' 
+        error: errorMessage
       });
     }
   },
 
-  async handleGuestLogin(
-    isPlayerX: boolean, 
-    callbacks: AuthServiceCallbacks
-  ) {
-    const playerType = isPlayerX ? 'X' : 'O';
-    
-    try {
-      // Get a random guest account from the database
-      const guestAccountsResponse = await apiService.getGuestAccounts();
-      const guestAccounts = guestAccountsResponse.guestAccounts;
-      
-      if (!guestAccounts || guestAccounts.length === 0) {
-        throw new Error('No guest accounts available');
-      }
-      
-      const randomGuestName = guestAccounts[Math.floor(Math.random() * guestAccounts.length)];
-      const guestResponse = await apiService.guestLogin(randomGuestName);
-      const player: GamePlayer = {
-        id: guestResponse.user.id,
-        name: guestResponse.user.username,
-        nickname: guestResponse.user.nickname || guestResponse.user.username,
-        isAuthenticated: true,
-        isGuest: true,
-      };
-
-      // Fetch stats for the guest player using unified approach
-      try {
-        const statsResponse = await apiService.getUserStats(player.id);
-        const stats = statsResponse.stats;
-
-        callbacks.updatePlayer(playerType, { player, stats });
-        callbacks.updatePlayerAuth(playerType, { isLoggedIn: true });
-      } catch (error) {
-        // If stats fetch fails, use default stats
-        const defaultStats = { totalGames: 0, wins: 0, losses: 0, draws: 0, winRate: 0 };
-        callbacks.updatePlayer(playerType, { player, stats: defaultStats });
-        callbacks.updatePlayerAuth(playerType, { isLoggedIn: true });
-      }
-    } catch (error) {
-      console.error('Error logging in as guest:', error);
-      callbacks.updatePlayerAuth(playerType, { error: 'Failed to login as guest', isLoading: false });
-    }
+  // Public API methods
+  async handlePlayerAuth(isPlayerX: boolean, authData: PlayerAuthState, callbacks: AuthServiceCallbacks) {
+    const playerType: PlayerType = isPlayerX ? 'X' : 'O';
+    const authType: AuthType = authData.isLoginMode ? 'login' : 'register';
+    return this.authenticate(playerType, authType, callbacks, authData);
   },
 
-  handleLogout(
-    isPlayerX: boolean, 
-    callbacks: AuthServiceCallbacks
-  ) {
-    const playerType = isPlayerX ? 'X' : 'O';
+  async handleGuestLogin(isPlayerX: boolean, callbacks: AuthServiceCallbacks) {
+    const playerType: PlayerType = isPlayerX ? 'X' : 'O';
+    return this.authenticate(playerType, 'guest', callbacks);
+  },
+
+  handleLogout(isPlayerX: boolean, callbacks: AuthServiceCallbacks) {
+    const playerType: PlayerType = isPlayerX ? 'X' : 'O';
     
     if (isPlayerX) {
       apiService.logout();

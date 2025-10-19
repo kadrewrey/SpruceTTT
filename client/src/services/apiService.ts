@@ -1,5 +1,6 @@
 // API service for backend communication
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
+const AUTH_TOKEN_KEY = process.env.REACT_APP_AUTH_TOKEN_KEY || 'authToken';
 
 export interface User {
   id: string;
@@ -12,9 +13,9 @@ export interface GameResult {
   isWin: boolean;
   moves: number;
   duration?: number;
-  winnerId?: string; // UUID of the winner
-  playerXId: string; // Player X UUID
-  playerOId: string; // Player O UUID
+  winnerId?: string;
+  playerXId: string;
+  playerOId: string;
 }
 
 export interface AuthResponse {
@@ -37,27 +38,17 @@ export interface ProfileResponse {
 }
 
 class ApiService {
-  private token: string | null = null;
+  private token: string | null = localStorage.getItem(AUTH_TOKEN_KEY);
 
-  constructor() {
-    // Load token from localStorage on initialization
-    this.token = localStorage.getItem('authToken');
-  }
-
+  // Generic request handler
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    };
-
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(url, {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        ...options.headers,
+      },
     });
 
     if (!response.ok) {
@@ -68,71 +59,71 @@ class ApiService {
     return response.json();
   }
 
-  async register(username: string, password: string, nickname: string): Promise<AuthResponse> {
-    const response = await this.request<AuthResponse>('/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, password, nickname }),
-    });
+  // Helper: Store auth token
+  private setToken(token: string): void {
+    this.token = token;
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+  }
 
-    this.token = response.token;
-    localStorage.setItem('authToken', this.token);
+  // Helper: POST request with JSON body
+  private post<T>(endpoint: string, body: object): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // Authentication methods
+  async register(username: string, password: string, nickname: string): Promise<AuthResponse> {
+    const response = await this.post<AuthResponse>('/register', { username, password, nickname });
+    this.setToken(response.token);
     return response;
   }
 
   async login(username: string, password: string): Promise<AuthResponse> {
-    const response = await this.request<AuthResponse>('/login', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
-
-    this.token = response.token;
-    localStorage.setItem('authToken', this.token);
+    const response = await this.post<AuthResponse>('/login', { username, password });
+    this.setToken(response.token);
     return response;
   }
 
-  async saveGame(gameResult: GameResult): Promise<void> {
-    await this.request('/games', {
-      method: 'POST',
-      body: JSON.stringify(gameResult),
-    });
-  }
-
-  async getProfile(): Promise<ProfileResponse> {
-    return this.request<ProfileResponse>('/profile');
-  }
-
-  async getGames(): Promise<{ games: any[] }> {
-    return this.request<{ games: any[] }>('/games');
-  }
-
-  async getGuestStats(playerName: string): Promise<{ stats: GameStats }> {
-    return this.request<{ stats: GameStats }>(`/guest-stats/${encodeURIComponent(playerName)}`);
-  }
-
-  async getUserStats(userId: string): Promise<{ stats: GameStats }> {
-    return this.request<{ stats: GameStats }>(`/users/${userId}/stats`);
-  }
-
-  async getGuestAccounts(): Promise<{ guestAccounts: string[] }> {
-    return this.request<{ guestAccounts: string[] }>('/guest-accounts');
-  }
-
   async guestLogin(username: string): Promise<AuthResponse> {
-    const response = await this.request<AuthResponse>('/guest-login', {
-      method: 'POST',
-      body: JSON.stringify({ username }),
-    });
-
-    this.token = response.token;
-    localStorage.setItem('authToken', this.token);
+    const response = await this.post<AuthResponse>('/guest-login', { username });
+    this.setToken(response.token);
     return response;
   }
 
   logout(): void {
     this.token = null;
-    localStorage.removeItem('authToken');
+    localStorage.removeItem(AUTH_TOKEN_KEY);
   }
 
+  // Game methods
+  async saveGame(gameResult: GameResult): Promise<void> {
+    await this.post('/games', gameResult);
+  }
+
+  async getGames(): Promise<{ games: any[] }> {
+    return this.request('/games');
+  }
+
+  // User/Profile methods
+  async getProfile(): Promise<ProfileResponse> {
+    return this.request('/profile');
+  }
+
+  async getUserStats(userId: string): Promise<{ stats: GameStats }> {
+    return this.request(`/users/${userId}/stats`);
+  }
+
+  async getGuestStats(playerName: string): Promise<{ stats: GameStats }> {
+    return this.request(`/guest-stats/${encodeURIComponent(playerName)}`);
+  }
+
+  async getGuestAccounts(): Promise<{ guestAccounts: string[] }> {
+    return this.request('/guest-accounts');
+  }
+
+  // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;
   }
@@ -141,9 +132,12 @@ class ApiService {
     if (!this.token) return null;
     
     try {
-      // Decode JWT payload (basic decode, not verification)
       const payload = JSON.parse(atob(this.token.split('.')[1]));
-      return { id: payload.userId, username: payload.username, nickname: payload.nickname };
+      return { 
+        id: payload.userId, 
+        username: payload.username, 
+        nickname: payload.nickname 
+      };
     } catch {
       return null;
     }
