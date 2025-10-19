@@ -98,4 +98,6 @@ export const getCellStyle = (
 export const getGridStyle = (size: number, cellPx: number) => ({
   ...styles.gameBoard,
   gridTemplateColumns: `repeat(${size}, ${cellPx}px)`,
+  justifyContent: 'center',
+  justifyItems: 'center',
 });

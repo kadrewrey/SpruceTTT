@@ -36,11 +36,11 @@ export const GameStatus: React.FC<GameStatusProps> = ({
         </div>
       ) : !gameStatusInfo.playersReady ? (
         <div style={{ textAlign: 'center' }}>
-          <div style={styles.subheader}>
+          <div style={{ ...styles.subheader, color: colors.white }}>
             {gameStatusInfo.message}
           </div>
           {gameStatusInfo.subMessage && (
-            <div style={{ ...styles.bodyText, marginTop: '4px' }}>
+            <div style={{ ...styles.bodyText, color: colors.white, marginTop: '4px' }}>
               {gameStatusInfo.subMessage}
             </div>
           )}

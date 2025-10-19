@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { makeBoard, isFull, nextPlayer, checkWinFromLastMove, Cell, Result, Player } from './utils/gameUtils';
-import { styles } from './utils/styles';
+import { styles, colors } from './utils/styles';
 import { PlayerState, createDefaultPlayerState } from './utils/types';
 import { 
   updatePlayerState, 
@@ -124,9 +124,21 @@ export const Main = () => {
       }}>
         <div style={styles.subheader}>How to play:</div>
         <div style={styles.bodyText}>
-          Log in, register, or choose to play as a guest. Then select your board size, and the number of items in a row you need for a win.
+          1. Log in, register, or choose to play as a guest.<br/>
+          2. Select your board size, and the number of items in a row you need for a win.<br/>
+          3. Click on a square to make your selection.
         </div>
       </div>
+
+      {/* Horizontal Divider */}
+      <div style={{
+        width: '100%',
+        maxWidth: '600px',
+        height: '1px',
+        background: `linear-gradient(to right, transparent, ${colors.border}, transparent)`,
+        margin: '12px auto',
+        opacity: 0.6
+      }} />
 
       <GameStatus
         result={result}
